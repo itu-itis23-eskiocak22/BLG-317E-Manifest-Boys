@@ -214,6 +214,17 @@
         // Placeholder for future JavaScript logic
         console.log("F1 Stats UI loaded.");
 
+
+        // 1. Gerekli iki açılır menüyü ID'leri ile bul
+        const seasonDropdown = document.getElementById('season');
+        const gpDropdown = document.getElementById('grandprix');
+        
+        // 2. 'season' menüsünde bir değişiklik
+        seasonDropdown.addEventListener('change', function() {
+          // 3. Olay gerçekleşince 'grandprix' menüsünün 'disabled' özelliğini kaldır
+          gpDropdown.disabled = false;
+        });
+
         // Example: Add more years to the dropdown
         const seasonSelect = document.getElementById('season');
         const currentYear = new Date().getFullYear();
