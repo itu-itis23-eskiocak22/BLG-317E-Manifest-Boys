@@ -87,7 +87,7 @@
 
                 <!-- Action Button -->
                 <div class="flex items-end">
-                    <button type="button" class="mt-1 w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-slate-900">
+                    <button id="fetch-data" type="button" class="mt-1 w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-slate-900">
                         Fetch Data
                     </button>
                 </div>
@@ -113,35 +113,12 @@
                                     <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Points</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-slate-800 divide-y divide-slate-700">
-                                <!-- Placeholder Row 1 -->
-                                <tr class="hover:bg-slate-700">
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">1</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">L. Norris</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">McLaren</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">57</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">1:30:43.275</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-red-400">25</td>
+                            <tbody id="race-results-body" class="bg-slate-800 divide-y divide-slate-700">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-3 text-sm text-slate-400">
+                                        Select a season and Grand Prix, then click Fetch Data.
+                                    </td>
                                 </tr>
-                                <!-- Placeholder Row 2 -->
-                                <tr class="hover:bg-slate-700">
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">2</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">M. Verstappen</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">Red Bull Racing</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">57</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">+7.612</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-red-400">18</td>
-                                </tr>
-                                <!-- Placeholder Row 3 -->
-                                <tr class="hover:bg-slate-700">
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">3</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">C. Leclerc</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">Ferrari</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">57</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">+9.920</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-red-400">15</td>
-                                </tr>
-                                <!-- ... more placeholder rows -->
                             </tbody>
                         </table>
                     </div>
@@ -211,38 +188,153 @@
     </footer>
 
     <script>
-        // Placeholder for future JavaScript logic
-        console.log("F1 Stats UI loaded.");
+        // Ergast F1 API integration
+        const API_BASE = 'https://ergast.com/api/f1';
+        const seasonSelect = document.getElementById('season');
+        const gpSelect = document.getElementById('grandprix');
+        const driverSelect = document.getElementById('driver');
+        const fetchBtn = document.getElementById('fetch-data');
+        const resultsBody = document.getElementById('race-results-body');
 
+        function clearChildren(el) {
+            while (el.firstChild) el.removeChild(el.firstChild);
+        }
 
-        // 1. Gerekli iki açılır menüyü ID'leri ile bul
-        const seasonDropdown = document.getElementById('season');
-        const gpDropdown = document.getElementById('grandprix');
-        
-        // 2. 'season' menüsünde bir değişiklik
-        seasonDropdown.addEventListener('change', function() {
-          // 3. Olay gerçekleşince 'grandprix' menüsünün 'disabled' özelliğini kaldır
-          gpDropdown.disabled = false;
+        function setDisabled(el, disabled) {
+            el.disabled = disabled;
+        }
+
+        function populateSelect(select, items, placeholder) {
+            clearChildren(select);
+            if (placeholder !== undefined) {
+                const ph = document.createElement('option');
+                ph.value = '';
+                ph.textContent = placeholder;
+                select.appendChild(ph);
+            }
+            items.forEach(({ value, label }) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderMessageRow(text) {
+            resultsBody.innerHTML = `<tr><td colspan="6" class="px-4 py-3 text-sm text-slate-400">${text}</td></tr>`;
+        }
+
+        function renderResults(results) {
+            if (!results || results.length === 0) {
+                renderMessageRow('No results found.');
+                return;
+            }
+            const rows = results.map((r) => {
+                const position = r.position || '-';
+                const driverName = `${r.Driver?.givenName || ''} ${r.Driver?.familyName || ''}`.trim();
+                const constructorName = r.Constructor?.name || '-';
+                const laps = r.laps || '-';
+                const timeOrStatus = (r.Time && r.Time.time) ? r.Time.time : (r.status || '-');
+                const points = r.points || '0';
+                return `
+                    <tr class="hover:bg-slate-700">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">${position}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">${driverName}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">${constructorName}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">${laps}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-200">${timeOrStatus}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-bold text-red-400">${points}</td>
+                    </tr>
+                `;
+            }).join('');
+            resultsBody.innerHTML = rows;
+        }
+
+        async function loadRoundsForSeason(season) {
+            try {
+                setDisabled(gpSelect, true);
+                const res = await fetch(`${API_BASE}/${season}.json`);
+                const data = await res.json();
+                const races = (data && data.MRData && data.MRData.RaceTable && data.MRData.RaceTable.Races) || [];
+                const options = races.map((race) => ({ value: String(race.round), label: race.raceName }));
+                populateSelect(gpSelect, options, 'Select Grand Prix');
+                setDisabled(gpSelect, options.length === 0);
+            } catch (e) {
+                populateSelect(gpSelect, [], 'Failed to load GPs');
+                setDisabled(gpSelect, true);
+            }
+        }
+
+        async function loadDriversForSeason(season) {
+            try {
+                setDisabled(driverSelect, true);
+                const res = await fetch(`${API_BASE}/${season}/drivers.json?limit=1000`);
+                const data = await res.json();
+                const drivers = (data && data.MRData && data.MRData.DriverTable && data.MRData.DriverTable.Drivers) || [];
+                const options = drivers.map((d) => ({ value: d.driverId, label: `${d.givenName} ${d.familyName}` }));
+                populateSelect(driverSelect, [{ value: '', label: 'All Drivers' }, ...options]);
+                setDisabled(driverSelect, options.length === 0);
+            } catch (e) {
+                populateSelect(driverSelect, [], 'Failed to load drivers');
+                setDisabled(driverSelect, true);
+            }
+        }
+
+        async function fetchRaceResults(season, round, driverId) {
+            try {
+                renderMessageRow('Loading results...');
+                const res = await fetch(`${API_BASE}/${season}/${round}/results.json?limit=1000`);
+                const data = await res.json();
+                const race = data && data.MRData && data.MRData.RaceTable && data.MRData.RaceTable.Races && data.MRData.RaceTable.Races[0];
+                const results = (race && race.Results) || [];
+                const filtered = driverId ? results.filter((r) => r.Driver && r.Driver.driverId === driverId) : results;
+                renderResults(filtered);
+            } catch (e) {
+                renderMessageRow('Failed to load results. Please try again.');
+            }
+        }
+
+        // Initialize season options
+        (function init() {
+            const currentYear = new Date().getFullYear();
+            const startYear = 1950;
+            seasonSelect.innerHTML = '';
+            for (let year = currentYear; year >= startYear; year--) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (year === currentYear) {
+                    option.selected = true;
+                }
+                seasonSelect.appendChild(option);
+            }
+            setDisabled(gpSelect, true);
+            setDisabled(driverSelect, true);
+            // Preload for current year
+            loadRoundsForSeason(currentYear);
+            loadDriversForSeason(currentYear);
+        })();
+
+        // Events
+        seasonSelect.addEventListener('change', function () {
+            const season = seasonSelect.value;
+            setDisabled(gpSelect, true);
+            setDisabled(driverSelect, true);
+            loadRoundsForSeason(season);
+            loadDriversForSeason(season);
+            renderMessageRow('Select a Grand Prix and click Fetch Data.');
         });
 
-        // Example: Add more years to the dropdown
-        const seasonSelect = document.getElementById('season');
-        const currentYear = new Date().getFullYear();
-        const startYear = 1950;
-        
-        // Clear existing options (except the first one if it's a placeholder)
-        // For this demo, we'll clear and repopulate
-        seasonSelect.innerHTML = ''; 
-
-        for (let year = currentYear; year >= startYear; year--) {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            if (year === currentYear) {
-                option.selected = true;
+        fetchBtn.addEventListener('click', function () {
+            const season = seasonSelect.value;
+            const round = gpSelect.value;
+            const driverId = driverSelect.value;
+            if (!round) {
+                renderMessageRow('Please select a Grand Prix.');
+                return;
             }
-            seasonSelect.appendChild(option);
-        }
+            fetchRaceResults(season, round, driverId);
+        });
     </script>
 
 </body>
